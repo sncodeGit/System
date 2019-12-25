@@ -1,0 +1,92 @@
+---
+- hosts: First 
+  vars:
+    - mysql_packages: ['mysql-server', 'mysql-client', 'python-mysqldb']
+      wp_dir: /var/www/html
+      db_name: wordpress
+      db_user: wordpress
+      db_password: 123456wordpress
+      wp_user: wpuser
+      wp_user_pass: 123456wpuser
+  tasks:
+    - name: apt-get update and upgrade
+      apt: 
+        update_cache=yes 
+        upgrade=dist
+
+    - name: Install Apache2
+      apt: 
+        pkg={{ item }}
+        state=latest
+      with_items:
+        - apache2
+        - libapache2-mod-php7.0
+      
+    - name: Install Mysql packages
+      apt: 
+        pkg={{ mysql_packages }} 
+        state=latest
+
+    - name: Install all PHP7.0 packages
+      apt: 
+        pkg=php7.0* 
+        state=latest
+
+    - name: Install snmp-mibs-downloader
+      apt:
+        pkg=snmp-mibs-downloader
+        state=latest
+
+    - name: Restart Apache
+      service: 
+        name=apache2 
+        state=restarted
+
+    - name: Download archive with WordPress
+      get_url: 
+        url=https://wordpress.org/latest.tar.gz
+        dest=/tmp/latest.tar.gz
+
+    - name: Remove target directory and unzip archive with WordPress
+      shell:
+        "rm -r {{ wp_dir }}; mkdir {{ wp_dir }}; cd {{ wp_dir }}; tar -xzvf /tmp/latest.tar.gz && rm /tmp/latest.tar.gz"
+
+    - name: Install WordPress 
+      shell:
+        "cd {{ wp_dir }}; mv ./wordpress/* ./ && rmdir wordpress && mv wp-config-sample.php wp-config.php"
+
+    - name: Create DB
+      mysql_db:
+        name={{ db_name }}
+        state=present
+        login_user=root
+
+    - name: Create DB user
+      mysql_user:
+        name={{ db_user }}
+        password={{ db_password }}
+        priv={{ db_name }}.*:ALL
+        state=present
+        login_user=root
+
+    - name: Create new user for Wordpress
+      shell:
+        "useradd -d {{ wp_dir }} -s /bin/bash -p {{ wp_user_pass }} {{ wp_user }} && chown --from=nobody:nogroup -R {{ wp_user }}:{{ wp_user }} {{ wp_dir }}"
+
+    - name: Set DB_NAME in wp-config.php
+      lineinfile:
+        dest={{ wp_dir }}/wp-config.php
+        regexp='DB_NAME'
+        line="define('DB_NAME', '{{ db_name }}');"
+
+    - name: Set DB_USER in wp-config.php
+      lineinfile:
+        dest={{ wp_dir }}/wp-config.php
+        regexp='DB_USER'
+        line="define('DB_USER', '{{ db_user }}');"
+
+    - name: Set DB_PASSWORD parametrs in wp-config.php
+      lineinfile:
+        dest={{ wp_dir }}/wp-config.php
+        regexp='DB_PASSWORD'
+        line="define('DB_PASSWORD', '{{ db_password }}');"
