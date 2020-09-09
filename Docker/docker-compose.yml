@@ -1,0 +1,9 @@
+# Nginx (127.0.0.1:8080) -> Apache -> MySQL
+
+version: "3.8"
+
+services:
+
+  nginx:
+    image: nginx
+    restart: always
